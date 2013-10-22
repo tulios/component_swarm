@@ -1,0 +1,11 @@
+{
+  "css": [
+    "style"
+  ],
+  "js": [
+    "script"
+  ],
+  "dependencies": [
+    "example_4"
+  ]
+}

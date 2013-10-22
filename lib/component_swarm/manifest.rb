@@ -1,43 +1,33 @@
 module ComponentSwarm
   class Manifest
 
-    def initialize manifest_path
-      @path = manifest_path
+    attr_reader :components
+
+    def initialize sprockets_context
+      @path = sprockets_context.pathname.to_s
+      @sprockets_context = sprockets_context
       @components = {}
-      @components_dependencies = {}      
+      @dependencies = {}
+      @required_components = {"css" => [], "js" => []}
     end
 
-    def use component_name, config
-      @components[component_name] = config
+    def use component_path
+      manifest_path = @sprockets_context.resolve "#{component_path}/manifest.json"
+      config = JSON.parse File.read(manifest_path.to_s)
+      @components[component_path] = config
     end
 
-    def import! context
-      @sprockets = context
-
-      case @sprockets.content_type
+    def import!
+      dependencies = collect_dependencies
+      case @sprockets_context.content_type
       when /css/
-        dependencies = get_dependencies
-        dependencies.each do |component_name|
-          import_dependency "css", component_name
-        end
-
-        @components.each_pair do |name, config|
-          import_type("css", name, config) unless dependencies.include?(name)
-        end
+        dependencies.each {|component_path| import_dependency "css", component_path}
+        @components.each_pair {|name, config| import_type("css", name, config) unless dependencies.include?(name)}
 
       when /javascript/
-        get_libs.each do |lib_name|
-          @sprockets.require_asset lib_name
-        end
-
-      dependencies = get_dependencies
-        dependencies.each do |component_name|
-          import_dependency "js", component_name
-        end
-
-        @components.each_pair do |name, config|
-          import_type("js", name, config) unless dependencies.include?(name)
-        end
+        get_libs.each {|lib_name| @sprockets_context.require_asset lib_name}
+        dependencies.each {|component_name| import_dependency "js", component_name}
+        @components.each_pair {|name, config| import_type("js", name, config) unless dependencies.include?(name)}
       end
     end
 
@@ -51,7 +41,7 @@ module ComponentSwarm
       array.flatten.uniq
     end
 
-    def get_dependencies
+    def collect_dependencies
       array = []
       @components.values.each do |config|
         array << config["dependencies"] if config["dependencies"]
@@ -60,27 +50,29 @@ module ComponentSwarm
       array.flatten.uniq
     end
 
-    def import_type type, component_name, component_config
+    def import_type type, component_path, component_config
+      return if @required_components[type].include?(component_path)
+      @required_components[type] << component_path
+
       (component_config[type] || []).each do |file|
-        @sprockets.require_asset "#{component_name}/#{type}/#{file}"
+        @sprockets_context.require_asset "#{component_path}/#{type}/#{file}"
       end
     end
 
-    def import_dependency type, component_name
-      config = load_dependency component_name
+    def import_dependency type, component_path
+      config = load_dependency component_path
       dependencies = config["dependencies"] || []
       dependencies.each {|name| import_dependency(type, name)}
-      import_type type, component_name, config
+      import_type type, component_path, config
     end
 
-    def load_dependency component_name
-      config = @components_dependencies[component_name]
+    def load_dependency component_path
+      config = @dependencies[component_path]
       return config if config
 
-      manifest_path = @sprockets.resolve "#{component_name}/manifest.json"
+      manifest_path = @sprockets_context.resolve "#{component_path}/manifest.json"
       config = JSON.parse File.read(manifest_path.to_s)
-      @components_dependencies[component_name] = config
-      config
+      @dependencies[component_path] = config
     end
 
   end

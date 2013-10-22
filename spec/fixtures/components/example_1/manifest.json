@@ -1,0 +1,15 @@
+{
+  "css": [
+    "style"
+  ],
+  "js": [
+    "script"
+  ],
+  "libs": [
+    "jquery"
+  ],
+  "dependencies": [
+    "example_2",
+    "example_3"
+  ]
+}
